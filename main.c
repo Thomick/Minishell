@@ -46,13 +46,33 @@ void apply_redirects(struct cmd *cmd)
 
 int execute(struct cmd *cmd)
 {
+	pid_t id;
+	int ret_code;
 	switch (cmd->type)
 	{
 	case C_PLAIN:
-		execvp(cmd->args[0], cmd->args);
+		id = fork();
+		if (id)
+		{
+			int code;
+			waitpid(id, &code, 0);
+			return code;
+		}
+		else
+			return execvp(cmd->args[0], cmd->args);
 	case C_SEQ:
+		execute(cmd->left);
+		return execute(cmd->right);
 	case C_AND:
+		ret_code = execute(cmd->left);
+		if (!ret_code)
+			return execute(cmd->right);
+		return ret_code;
 	case C_OR:
+		ret_code = execute(cmd->left);
+		if (ret_code)
+			return execute(cmd->right);
+		return ret_code;
 	case C_PIPE:
 	case C_VOID:
 		errmsg("I do not know how to do this, please help me!");
