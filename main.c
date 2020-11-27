@@ -13,16 +13,16 @@
 // This is the file that you should work on.
 
 // declaration
-int execute (struct cmd *cmd);
+int execute(struct cmd *cmd);
 
 // name of the program, to be printed in several places
 #define NAME "myshell"
 
 // Some helpful functions
 
-void errmsg (char *msg)
+void errmsg(char *msg)
 {
-	fprintf(stderr,"error: %s\n",msg);
+	fprintf(stderr, "error: %s\n", msg);
 }
 
 // apply_redirects() should modify the file descriptors for standard
@@ -31,7 +31,7 @@ void errmsg (char *msg)
 // append is like output but the file should be extended rather
 // than overwritten.
 
-void apply_redirects (struct cmd *cmd)
+void apply_redirects(struct cmd *cmd)
 {
 	if (cmd->input || cmd->output || cmd->append || cmd->error)
 	{
@@ -44,16 +44,17 @@ void apply_redirects (struct cmd *cmd)
 // The structure of the command is explained in output.c.
 // Returns the exit code of the command in question.
 
-int execute (struct cmd *cmd)
+int execute(struct cmd *cmd)
 {
 	switch (cmd->type)
 	{
-	    case C_PLAIN:
-	    case C_SEQ:
-	    case C_AND:
-	    case C_OR:
-	    case C_PIPE:
-	    case C_VOID:
+	case C_PLAIN:
+		execvp(cmd->args[0], cmd->args);
+	case C_SEQ:
+	case C_AND:
+	case C_OR:
+	case C_PIPE:
+	case C_VOID:
 		errmsg("I do not know how to do this, please help me!");
 		return -1;
 	}
@@ -63,23 +64,26 @@ int execute (struct cmd *cmd)
 	return -1;
 }
 
-int main (int argc, char **argv)
+int main(int argc, char **argv)
 {
-	char *prompt = malloc(strlen(NAME)+3);
+	char *prompt = malloc(strlen(NAME) + 3);
 	printf("welcome to %s!\n", NAME);
-	sprintf(prompt,"%s> ", NAME);
+	sprintf(prompt, "%s> ", NAME);
 
 	while (1)
 	{
 		char *line = readline(prompt);
-		if (!line) break;	// user pressed Ctrl+D; quit shell
-		if (!*line) continue;	// empty line
+		if (!line)
+			break; // user pressed Ctrl+D; quit shell
+		if (!*line)
+			continue; // empty line
 
-		add_history (line);	// add line to history
+		add_history(line); // add line to history
 
 		struct cmd *cmd = parser(line);
-		if (!cmd) continue;	// some parse error occurred; ignore
-		//output(cmd,0);	// activate this for debugging
+		if (!cmd)
+			continue;	// some parse error occurred; ignore
+		output(cmd, 0); // activate this for debugging
 		execute(cmd);
 	}
 
