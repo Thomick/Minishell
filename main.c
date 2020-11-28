@@ -59,7 +59,7 @@ int execute(struct cmd *cmd)
 			return code;
 		}
 		else
-			return execvp(cmd->args[0], cmd->args);
+			exit(execvp(cmd->args[0], cmd->args));
 	case C_SEQ:
 		execute(cmd->left);
 		return execute(cmd->right);
@@ -74,9 +74,18 @@ int execute(struct cmd *cmd)
 			return execute(cmd->right);
 		return ret_code;
 	case C_PIPE:
-	case C_VOID:
-		errmsg("I do not know how to do this, please help me!");
+		errmsg("pipe");
 		return -1;
+	case C_VOID:
+		id = fork();
+		if (id)
+		{
+			int code;
+			waitpid(id, &code, 0);
+			return code;
+		}
+		else
+			exit(execute(cmd->left));
 	}
 
 	// Just to satisfy the compiler
