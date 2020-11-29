@@ -33,10 +33,37 @@ void errmsg(char *msg)
 
 void apply_redirects(struct cmd *cmd)
 {
-	if (cmd->input || cmd->output || cmd->append || cmd->error)
+	if (cmd->input)
 	{
-		errmsg("I do not know how to redirect, please help me!");
-		exit(-1);
+		int fd;
+		if ((fd = open(cmd->input, O_DSYNC | O_RDONLY)) == -1)
+			errmsg("Could not open input file");
+		dup2(fd, STDIN_FILENO);
+		close(fd);
+	}
+	if (cmd->output)
+	{
+		int fd;
+		if ((fd = open(cmd->output, O_DSYNC | O_CREAT | O_WRONLY | O_TRUNC)) == -1)
+			errmsg("Could not open/create output file");
+		dup2(fd, STDOUT_FILENO);
+		close(fd);
+	}
+	if (cmd->error)
+	{
+		int fd;
+		if ((fd = open(cmd->error, O_DSYNC | O_CREAT | O_WRONLY | O_TRUNC)) == -1)
+			errmsg("Could not open/create error file");
+		dup2(fd, STDERR_FILENO);
+		close(fd);
+	}
+	if (cmd->append)
+	{
+		int fd;
+		if ((fd = open(cmd->append, O_DSYNC | O_CREAT | O_WRONLY | O_APPEND)) == -1)
+			errmsg("Could not open/create output file");
+		dup2(fd, STDOUT_FILENO);
+		close(fd);
 	}
 }
 
@@ -56,6 +83,7 @@ int execute(struct cmd *cmd)
 	}
 	else
 	{
+		apply_redirects(cmd);
 		int ret_code;
 		signal(SIGINT, SIG_DFL);
 		switch (cmd->type)
