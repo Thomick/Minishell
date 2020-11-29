@@ -47,45 +47,40 @@ void apply_redirects(struct cmd *cmd)
 int execute(struct cmd *cmd)
 {
 	pid_t id;
-	int ret_code;
-	switch (cmd->type)
+	id = fork();
+	if (id)
 	{
-	case C_PLAIN:
-		id = fork();
-		if (id)
+		int code;
+		waitpid(id, &code, 0);
+		return code;
+	}
+	else
+	{
+		int ret_code;
+		signal(SIGINT, SIG_DFL);
+		switch (cmd->type)
 		{
-			int code;
-			waitpid(id, &code, 0);
-			return code;
-		}
-		else
+		case C_PLAIN:
 			exit(execvp(cmd->args[0], cmd->args));
-	case C_SEQ:
-		execute(cmd->left);
-		return execute(cmd->right);
-	case C_AND:
-		ret_code = execute(cmd->left);
-		if (!ret_code)
-			return execute(cmd->right);
-		return ret_code;
-	case C_OR:
-		ret_code = execute(cmd->left);
-		if (ret_code)
-			return execute(cmd->right);
-		return ret_code;
-	case C_PIPE:
-		errmsg("pipe");
-		return -1;
-	case C_VOID:
-		id = fork();
-		if (id)
-		{
-			int code;
-			waitpid(id, &code, 0);
-			return code;
-		}
-		else
+		case C_SEQ:
+			execute(cmd->left);
+			exit(execute(cmd->right));
+		case C_AND:
+			ret_code = execute(cmd->left);
+			if (!ret_code)
+				exit(execute(cmd->right));
+			exit(ret_code);
+		case C_OR:
+			ret_code = execute(cmd->left);
+			if (ret_code)
+				exit(execute(cmd->right));
+			exit(ret_code);
+		case C_PIPE:
+			errmsg("pipe");
+			exit(-1);
+		case C_VOID:
 			exit(execute(cmd->left));
+		}
 	}
 
 	// Just to satisfy the compiler
@@ -95,6 +90,7 @@ int execute(struct cmd *cmd)
 
 int main(int argc, char **argv)
 {
+	signal(SIGINT, SIG_IGN);
 	char *prompt = malloc(strlen(NAME) + 3);
 	printf("welcome to %s!\n", NAME);
 	sprintf(prompt, "%s> ", NAME);
