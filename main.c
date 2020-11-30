@@ -25,6 +25,24 @@ void errmsg(char *msg)
 	fprintf(stderr, "error: %s\n", msg);
 }
 
+// Concatenates files and print on the standard output
+int cat(char *argv[])
+{
+	int i, c;
+	i = 1;
+	while (argv[i] != NULL)
+	{
+		FILE *f;
+		f = fopen(argv[i], "r");
+		while ((c = fgetc(f)) != EOF)
+			fputc(c, stdout);
+		fclose(f);
+		i++;
+	}
+	fflush(stdout);
+	return 0;
+}
+
 // apply_redirects() should modify the file descriptors for standard
 // input/output/error (0/1/2) of the current process to the files
 // whose names are given in cmd->input/output/error.
@@ -123,6 +141,8 @@ int execute(struct cmd *cmd)
 		switch (cmd->type)
 		{
 		case C_PLAIN:
+			if (strcmp(cmd->args[0], "cat") == 0)
+				exit(cat(cmd->args));
 			exit(execvp(cmd->args[0], cmd->args));
 		case C_SEQ:
 			execute(cmd->left);
