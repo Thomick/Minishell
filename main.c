@@ -67,6 +67,40 @@ void apply_redirects(struct cmd *cmd)
 	}
 }
 
+// exec_pipe take a command of type C_PIPE as input
+// and redirect the output of the left command to the input of the right command
+// If the first command fails it returns its code else it returns the coe of the right command
+int exec_pipe(struct cmd *cmd)
+{
+	int p[2];
+	if (pipe(p) == -1)
+		perror("Pipe creation failed");
+	pid_t idleft = fork();
+	if (idleft == 0)
+	{
+		dup2(p[1], STDOUT_FILENO);
+		close(p[0]);
+		close(p[1]);
+		exit(execute(cmd->left));
+	}
+	pid_t idright = fork();
+	if (idright == 0)
+	{
+		dup2(p[0], STDIN_FILENO);
+		close(p[0]);
+		close(p[1]);
+		exit(execute(cmd->right));
+	}
+	close(p[0]);
+	close(p[1]);
+	int codeleft, coderight;
+	waitpid(idleft, &codeleft, 0);
+	if (codeleft)
+		kill(idright, SIGTERM);
+	waitpid(idright, &coderight, 0);
+	return (coderight);
+}
+
 // The function execute() takes a command parsed at the command line.
 // The structure of the command is explained in output.c.
 // Returns the exit code of the command in question.
@@ -104,8 +138,7 @@ int execute(struct cmd *cmd)
 				exit(execute(cmd->right));
 			exit(ret_code);
 		case C_PIPE:
-			errmsg("pipe");
-			exit(-1);
+			exit(exec_pipe(cmd));
 		case C_VOID:
 			exit(execute(cmd->left));
 		}
