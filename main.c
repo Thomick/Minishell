@@ -1,4 +1,4 @@
-// Ecrit par Thomas MICHEL
+// Written by Thomas MICHEL
 // Exercice/DM d'architecture et système
 
 #include <stdlib.h>
@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <dirent.h>
 
 #include "global.h"
 
@@ -26,8 +27,42 @@ void errmsg(char *msg)
 	fprintf(stderr, "error: %s\n", msg);
 }
 
-// Concatenates files and print on the standard output
-int cat(char *argv[])
+// List directory content
+int ls(char *argv[])
+{
+	struct dirent **namelist;
+	int n;
+	if (argv[0] == NULL)
+	{
+		return -1;
+	}
+	else if (argv[1] == NULL)
+	{
+		n = scandir(".", &namelist, NULL, alphasort);
+	}
+	else
+	{
+		n = scandir(argv[1], &namelist, NULL, alphasort);
+	}
+	printf("%d\n", n);
+	if (n < 0)
+	{
+		return -1;
+	}
+	else
+	{
+		for (int i = 0; i < n; i++)
+		{
+			printf("%s\n", namelist[i]->d_name);
+			free(namelist[i]);
+		}
+		free(namelist);
+	}
+	fflush(stdout);
+	return 0;
+}
+
+int cat(char **argv)
 {
 	int i, c;
 	i = 1;
@@ -144,6 +179,8 @@ int execute(struct cmd *cmd)
 		case C_PLAIN:
 			if (strcmp(cmd->args[0], "cat") == 0)
 				exit(cat(cmd->args));
+			if (strcmp(cmd->args[0], "ls") == 0)
+				exit(ls(cmd->args));
 			exit(execvp(cmd->args[0], cmd->args));
 		case C_SEQ:
 			execute(cmd->left);

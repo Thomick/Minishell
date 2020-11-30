@@ -7,3 +7,4 @@ Fonctionnalitées implémentées :
 Fonctionnalités supplémentaires :
 - Commandes réécrites : 
     - cat
+    - ls
