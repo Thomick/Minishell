@@ -1,3 +1,6 @@
+// Ecrit par Thomas MICHEL
+// Exercice/DM d'architecture et système
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -9,8 +12,6 @@
 #include <signal.h>
 
 #include "global.h"
-
-// This is the file that you should work on.
 
 // declaration
 int execute(struct cmd *cmd);
