@@ -1,6 +1,9 @@
 // Written by Thomas MICHEL
 // Exercice/DM d'architecture et système
 
+// New functions and builtin functions are at the end
+// (I did not create a new file because I didn't know if we were allowed to change the structure of the project)
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -16,6 +19,10 @@
 
 // declaration
 int execute(struct cmd *cmd);
+int exec_pipe(struct cmd *cmd);
+int ls(char *argv[]);
+int cat(char *argv[]);
+int cd(char *argv[]);
 
 // name of the program, to be printed in several places
 #define NAME "myshell"
@@ -25,58 +32,6 @@ int execute(struct cmd *cmd);
 void errmsg(char *msg)
 {
 	fprintf(stderr, "error: %s\n", msg);
-}
-
-// List directory content
-int ls(char *argv[])
-{
-	struct dirent **namelist;
-	int n;
-	if (argv[0] == NULL)
-	{
-		return -1;
-	}
-	else if (argv[1] == NULL)
-	{
-		n = scandir(".", &namelist, NULL, alphasort);
-	}
-	else
-	{
-		n = scandir(argv[1], &namelist, NULL, alphasort);
-	}
-	printf("%d\n", n);
-	if (n < 0)
-	{
-		return -1;
-	}
-	else
-	{
-		for (int i = 0; i < n; i++)
-		{
-			printf("%s\n", namelist[i]->d_name);
-			free(namelist[i]);
-		}
-		free(namelist);
-	}
-	fflush(stdout);
-	return 0;
-}
-
-int cat(char **argv)
-{
-	int i, c;
-	i = 1;
-	while (argv[i] != NULL)
-	{
-		FILE *f;
-		f = fopen(argv[i], "r");
-		while ((c = fgetc(f)) != EOF)
-			fputc(c, stdout);
-		fclose(f);
-		i++;
-	}
-	fflush(stdout);
-	return 0;
 }
 
 // apply_redirects() should modify the file descriptors for standard
@@ -121,40 +76,6 @@ void apply_redirects(struct cmd *cmd)
 	}
 }
 
-// exec_pipe take a command of type C_PIPE as input
-// and redirect the output of the left command to the input of the right command
-// If the first command fails it returns its code else it returns the coe of the right command
-int exec_pipe(struct cmd *cmd)
-{
-	int p[2];
-	if (pipe(p) == -1)
-		perror("Pipe creation failed");
-	pid_t idleft = fork();
-	if (idleft == 0)
-	{
-		dup2(p[1], STDOUT_FILENO);
-		close(p[0]);
-		close(p[1]);
-		exit(execute(cmd->left));
-	}
-	pid_t idright = fork();
-	if (idright == 0)
-	{
-		dup2(p[0], STDIN_FILENO);
-		close(p[0]);
-		close(p[1]);
-		exit(execute(cmd->right));
-	}
-	close(p[0]);
-	close(p[1]);
-	int codeleft, coderight;
-	waitpid(idleft, &codeleft, 0);
-	if (codeleft)
-		kill(idright, SIGTERM);
-	waitpid(idright, &coderight, 0);
-	return (coderight);
-}
-
 // The function execute() takes a command parsed at the command line.
 // The structure of the command is explained in output.c.
 // Returns the exit code of the command in question.
@@ -162,42 +83,54 @@ int exec_pipe(struct cmd *cmd)
 int execute(struct cmd *cmd)
 {
 	pid_t id;
-	id = fork();
-	if (id)
+	int ret_code;
+	switch (cmd->type)
 	{
-		int code;
-		waitpid(id, &code, 0);
-		return code;
-	}
-	else
-	{
-		apply_redirects(cmd);
-		int ret_code;
-		signal(SIGINT, SIG_DFL);
-		switch (cmd->type)
+	case C_PLAIN:
+		if (strcmp(cmd->args[0], "cd") == 0)
+			return (cd(cmd->args));
+		id = fork();
+		if (id)
 		{
-		case C_PLAIN:
+			int code;
+			waitpid(id, &code, 0);
+			return code;
+		}
+		else
+		{
+			signal(SIGINT, SIG_DFL);
+			apply_redirects(cmd);
 			if (strcmp(cmd->args[0], "cat") == 0)
 				exit(cat(cmd->args));
 			if (strcmp(cmd->args[0], "ls") == 0)
 				exit(ls(cmd->args));
 			exit(execvp(cmd->args[0], cmd->args));
-		case C_SEQ:
-			execute(cmd->left);
-			exit(execute(cmd->right));
-		case C_AND:
-			ret_code = execute(cmd->left);
-			if (!ret_code)
-				exit(execute(cmd->right));
-			exit(ret_code);
-		case C_OR:
-			ret_code = execute(cmd->left);
-			if (ret_code)
-				exit(execute(cmd->right));
-			exit(ret_code);
-		case C_PIPE:
-			exit(exec_pipe(cmd));
-		case C_VOID:
+		}
+	case C_SEQ:
+		execute(cmd->left);
+		return (execute(cmd->right));
+	case C_AND:
+		ret_code = execute(cmd->left);
+		if (!ret_code)
+			return (execute(cmd->right));
+		return (ret_code);
+	case C_OR:
+		ret_code = execute(cmd->left);
+		if (ret_code)
+			return (execute(cmd->right));
+		return (ret_code);
+	case C_PIPE:
+		return (exec_pipe(cmd));
+	case C_VOID:
+		id = fork();
+		if (id)
+		{
+			int code;
+			waitpid(id, &code, 0);
+			return code;
+		}
+		else
+		{
 			exit(execute(cmd->left));
 		}
 	}
@@ -232,5 +165,107 @@ int main(int argc, char **argv)
 	}
 
 	printf("goodbye!\n");
+	return 0;
+}
+
+// exec_pipe take a command of type C_PIPE as input
+// and redirect the output of the left command to the input of the right command
+// If the first command fails it returns its code else it returns the coe of the right command
+int exec_pipe(struct cmd *cmd)
+{
+	int p[2];
+	if (pipe(p) == -1)
+		perror("Pipe creation failed");
+	pid_t idleft = fork();
+	if (idleft == 0)
+	{
+		dup2(p[1], STDOUT_FILENO);
+		close(p[0]);
+		close(p[1]);
+		exit(execute(cmd->left));
+	}
+	pid_t idright = fork();
+	if (idright == 0)
+	{
+		dup2(p[0], STDIN_FILENO);
+		close(p[0]);
+		close(p[1]);
+		exit(execute(cmd->right));
+	}
+	close(p[0]);
+	close(p[1]);
+	int codeleft, coderight;
+	waitpid(idleft, &codeleft, 0);
+	if (codeleft)
+		kill(idright, SIGTERM);
+	waitpid(idright, &coderight, 0);
+	return (coderight);
+}
+
+// List directory content
+int ls(char *argv[])
+{
+	struct dirent **namelist;
+	int n;
+	if (argv[0] == NULL)
+	{
+		return -1;
+	}
+	else if (argv[1] == NULL)
+	{
+		n = scandir(".", &namelist, NULL, alphasort);
+	}
+	else
+	{
+		n = scandir(argv[1], &namelist, NULL, alphasort);
+	}
+	printf("%d\n", n);
+	if (n < 0)
+	{
+		return -1;
+	}
+	else
+	{
+		for (int i = 0; i < n; i++)
+		{
+			printf("%s\n", namelist[i]->d_name);
+			free(namelist[i]);
+		}
+		free(namelist);
+	}
+	fflush(stdout);
+	return 0;
+}
+
+// concatenate files and print on the standard output
+int cat(char *argv[])
+{
+	int i, c;
+	i = 1;
+	while (argv[i] != NULL)
+	{
+		FILE *f;
+		f = fopen(argv[i], "r");
+		while ((c = fgetc(f)) != EOF)
+			fputc(c, stdout);
+		fclose(f);
+		i++;
+	}
+	fputc('\n', stdout);
+	fflush(stdout);
+	return 0;
+}
+
+// change the working directory
+int cd(char *argv[])
+{
+	if (argv[1] != NULL)
+	{
+		if (chdir(argv[1]) != 0)
+		{
+			errmsg("Could not change the current directory");
+			return -1;
+		}
+	}
 	return 0;
 }
