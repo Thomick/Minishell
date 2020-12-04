@@ -204,8 +204,8 @@ int exec_pipe(struct cmd *cmd)
 	close(p[1]);
 	int codeleft, coderight;
 	waitpid(idleft, &codeleft, 0);
-	if (codeleft) // If left command failed
-		kill(idright, SIGTERM);
+	if (codeleft)				// If left command failed
+		kill(idright, SIGTERM); // kill he right command
 	waitpid(idright, &coderight, 0);
 	return (coderight);
 }
@@ -250,12 +250,12 @@ int cat(char *argv[])
 {
 	int i, c;
 	i = 1;
-	while (argv[i] != NULL)
+	while (argv[i] != NULL) // for each argument
 	{
 		FILE *f;
-		f = fopen(argv[i], "r");
-		while ((c = fgetc(f)) != EOF)
-			fputc(c, stdout);
+		f = fopen(argv[i], "r");	  // open the file
+		while ((c = fgetc(f)) != EOF) // for each character in the file
+			fputc(c, stdout);		  // Print the character
 		fclose(f);
 		i++;
 	}
