@@ -45,33 +45,33 @@ void apply_redirects(struct cmd *cmd)
 	if (cmd->input)
 	{
 		int fd;
-		if ((fd = open(cmd->input, O_DSYNC | O_RDONLY)) == -1)
+		if ((fd = open(cmd->input, O_DSYNC | O_RDONLY)) == -1) // Open the file
 			errmsg("Could not open input file");
-		dup2(fd, STDIN_FILENO);
+		dup2(fd, STDIN_FILENO); // Overwrite stdin
 		close(fd);
 	}
 	if (cmd->output)
 	{
 		int fd;
-		if ((fd = open(cmd->output, O_DSYNC | O_CREAT | O_WRONLY | O_TRUNC)) == -1)
+		if ((fd = open(cmd->output, O_DSYNC | O_CREAT | O_WRONLY | O_TRUNC)) == -1) // Open the file
 			errmsg("Could not open/create output file");
-		dup2(fd, STDOUT_FILENO);
+		dup2(fd, STDOUT_FILENO); // Overwrite stdout
 		close(fd);
 	}
 	if (cmd->error)
 	{
 		int fd;
-		if ((fd = open(cmd->error, O_DSYNC | O_CREAT | O_WRONLY | O_TRUNC)) == -1)
+		if ((fd = open(cmd->error, O_DSYNC | O_CREAT | O_WRONLY | O_TRUNC)) == -1) // Open the file
 			errmsg("Could not open/create error file");
-		dup2(fd, STDERR_FILENO);
+		dup2(fd, STDERR_FILENO); // Overwrite stderr
 		close(fd);
 	}
 	if (cmd->append)
 	{
 		int fd;
-		if ((fd = open(cmd->append, O_DSYNC | O_CREAT | O_WRONLY | O_APPEND)) == -1)
+		if ((fd = open(cmd->append, O_DSYNC | O_CREAT | O_WRONLY | O_APPEND)) == -1) // Open the file in 'append' mode
 			errmsg("Could not open/create output file");
-		dup2(fd, STDOUT_FILENO);
+		dup2(fd, STDOUT_FILENO); // Overwrite stdout
 		close(fd);
 	}
 }
@@ -87,9 +87,9 @@ int execute(struct cmd *cmd)
 	switch (cmd->type)
 	{
 	case C_PLAIN:
-		if (strcmp(cmd->args[0], "cd") == 0)
+		if (strcmp(cmd->args[0], "cd") == 0) // Need to change the directory of the parent process -> executes outside the fork
 			return (cd(cmd->args));
-		id = fork();
+		id = fork(); // Create child process which input and output can be overwrited
 		if (id)
 		{
 			int code;
@@ -98,9 +98,13 @@ int execute(struct cmd *cmd)
 		}
 		else
 		{
-			signal(SIGINT, SIG_DFL);
-			apply_redirects(cmd);
-			if (strcmp(cmd->args[0], "cat") == 0)
+			signal(SIGINT, SIG_DFL); //Restore signals for child process
+			signal(SIGQUIT, SIG_DFL);
+			signal(SIGTSTP, SIG_DFL);
+			signal(SIGTTIN, SIG_DFL);
+			signal(SIGTTOU, SIG_DFL);
+			apply_redirects(cmd);				  // Redirection
+			if (strcmp(cmd->args[0], "cat") == 0) // built in functions
 				exit(cat(cmd->args));
 			if (strcmp(cmd->args[0], "ls") == 0)
 				exit(ls(cmd->args));
@@ -131,7 +135,7 @@ int execute(struct cmd *cmd)
 		}
 		else
 		{
-			exit(execute(cmd->left));
+			exit(execute(cmd->left)); // Subshell in a child process so functions such as "cd" can't affect the main shell
 		}
 	}
 
@@ -142,7 +146,11 @@ int execute(struct cmd *cmd)
 
 int main(int argc, char **argv)
 {
-	signal(SIGINT, SIG_IGN);
+	signal(SIGINT, SIG_IGN); // Neutralize signals
+	signal(SIGQUIT, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
 	char *prompt = malloc(strlen(NAME) + 3);
 	printf("welcome to %s!\n", NAME);
 	sprintf(prompt, "%s> ", NAME);
@@ -177,15 +185,15 @@ int exec_pipe(struct cmd *cmd)
 	if (pipe(p) == -1)
 		perror("Pipe creation failed");
 	pid_t idleft = fork();
-	if (idleft == 0)
+	if (idleft == 0) // Execute left command
 	{
-		dup2(p[1], STDOUT_FILENO);
+		dup2(p[1], STDOUT_FILENO); // Redirection of left output to right input
 		close(p[0]);
 		close(p[1]);
 		exit(execute(cmd->left));
 	}
 	pid_t idright = fork();
-	if (idright == 0)
+	if (idright == 0) // Execute left command
 	{
 		dup2(p[0], STDIN_FILENO);
 		close(p[0]);
@@ -196,7 +204,7 @@ int exec_pipe(struct cmd *cmd)
 	close(p[1]);
 	int codeleft, coderight;
 	waitpid(idleft, &codeleft, 0);
-	if (codeleft)
+	if (codeleft) // If left command failed
 		kill(idright, SIGTERM);
 	waitpid(idright, &coderight, 0);
 	return (coderight);
@@ -207,11 +215,11 @@ int ls(char *argv[])
 {
 	struct dirent **namelist;
 	int n;
-	if (argv[0] == NULL)
+	if (argv[0] == NULL) // invalid command
 	{
 		return -1;
 	}
-	else if (argv[1] == NULL)
+	else if (argv[1] == NULL) // ls without arguments
 	{
 		n = scandir(".", &namelist, NULL, alphasort);
 	}
@@ -219,7 +227,7 @@ int ls(char *argv[])
 	{
 		n = scandir(argv[1], &namelist, NULL, alphasort);
 	}
-	printf("%d\n", n);
+	// printf("%d\n", n);  // Number of files and directories
 	if (n < 0)
 	{
 		return -1;
@@ -251,7 +259,7 @@ int cat(char *argv[])
 		fclose(f);
 		i++;
 	}
-	fputc('\n', stdout);
+	fputc('\n', stdout); // Just to print the prompt on a new line
 	fflush(stdout);
 	return 0;
 }
